@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>汽车智能座舱年轻化 - 交互Widget展示</title>
+    <title>Car Cabin Widgets</title>
     <style>
         * {
             margin: 0;
@@ -13,169 +13,123 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #f5f5f7;
             min-height: 100vh;
-            padding: 20px;
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1440px;
             margin: 0 auto;
+            padding: 60px 20px;
         }
 
         header {
             text-align: center;
-            color: white;
-            margin-bottom: 40px;
-            padding: 20px;
+            margin-bottom: 80px;
         }
 
         header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
+            font-size: 3.5rem;
             font-weight: 700;
+            color: #000;
+            letter-spacing: -0.5px;
+            margin-bottom: 20px;
         }
 
         header p {
-            font-size: 1.1rem;
-            opacity: 0.9;
+            font-size: 1.2rem;
+            color: #666;
+            font-weight: 400;
+            letter-spacing: -0.3px;
         }
 
         .widgets-grid {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 30px;
-            margin-bottom: 40px;
+            gap: 20px;
+            margin-bottom: 60px;
         }
 
         @media (min-width: 768px) {
             .widgets-grid {
                 grid-template-columns: 1fr 1fr;
+                gap: 30px;
             }
         }
 
         .widget-card {
             background: white;
-            border-radius: 16px;
+            border-radius: 20px;
             overflow: hidden;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+            transition: box-shadow 0.3s ease;
+            cursor: pointer;
+            text-decoration: none;
+            display: block;
         }
 
         .widget-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 12px 16px rgba(0, 0, 0, 0.1);
         }
 
-        .widget-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            text-align: center;
+        .widget-card:active {
+            transform: scale(0.98);
         }
 
-        .widget-header h2 {
-            font-size: 1.5rem;
-            margin-bottom: 5px;
-        }
-
-        .widget-header p {
-            font-size: 0.95rem;
-            opacity: 0.9;
-        }
-
-        .widget-frame {
-            flex: 1;
+        .widget-content {
+            padding: 0;
             position: relative;
             overflow: hidden;
-            background: #f5f5f5;
+            aspect-ratio: 1;
+            background: #f9f9f9;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 400px;
         }
 
-        @media (min-width: 768px) {
-            .widget-frame {
-                min-height: 500px;
-            }
-        }
-
-        iframe {
+        .widget-content iframe {
             width: 100%;
             height: 100%;
             border: none;
             display: block;
         }
 
-        .widget-footer {
-            padding: 15px 20px;
-            background: #f9f9f9;
-            border-top: 1px solid #eee;
-            text-align: center;
+        .widget-title {
+            padding: 24px 24px 20px 24px;
+            background: white;
         }
 
-        .widget-footer a {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-size: 0.95rem;
-            transition: opacity 0.3s ease;
-        }
-
-        .widget-footer a:hover {
-            opacity: 0.9;
+        .widget-title h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #000;
+            margin: 0;
+            letter-spacing: -0.3px;
         }
 
         footer {
             text-align: center;
-            color: white;
-            padding: 30px 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.2);
-            margin-top: 40px;
-        }
-
-        footer p {
-            margin: 5px 0;
-            font-size: 0.95rem;
-        }
-
-        .tech-stack {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 20px;
-            border-radius: 12px;
-            margin-top: 20px;
-            color: white;
-            text-align: center;
-        }
-
-        .tech-stack h3 {
-            margin-bottom: 10px;
-            font-size: 1.1rem;
-        }
-
-        .tech-stack p {
+            padding: 40px 20px;
+            border-top: 1px solid #e5e5e7;
+            color: #666;
             font-size: 0.9rem;
-            opacity: 0.9;
         }
 
         @media (max-width: 600px) {
             header h1 {
-                font-size: 1.8rem;
+                font-size: 2rem;
             }
 
             header p {
                 font-size: 1rem;
             }
 
-            .widget-frame {
-                min-height: 350px;
+            .container {
+                padding: 40px 20px;
+            }
+
+            header {
+                margin-bottom: 50px;
             }
         }
     </style>
@@ -183,46 +137,34 @@
 <body>
     <div class="container">
         <header>
-            <h1>🚗 智能座舱年轻化</h1>
-            <p>交互设计概念展示</p>
+            <h1>Car Cabin Widgets</h1>
+            <p>智能座舱年轻化交互设计</p>
         </header>
 
         <div class="widgets-grid">
             <!-- Fish Tank Widget -->
-            <div class="widget-card">
-                <div class="widget-header">
-                    <h2>🐠 Fish Tank Widget</h2>
-                    <p>动态生态系统交互</p>
-                </div>
-                <div class="widget-frame">
+            <a href="fish-tank-widget.html" class="widget-card">
+                <div class="widget-content">
                     <iframe src="fish-tank-widget.html" title="Fish Tank Widget"></iframe>
                 </div>
-                <div class="widget-footer">
-                    <a href="fish-tank-widget.html" target="_blank">全屏查看</a>
+                <div class="widget-title">
+                    <h2>Fish Tank</h2>
                 </div>
-            </div>
+            </a>
 
             <!-- Vinyl DJ Widget -->
-            <div class="widget-card">
-                <div class="widget-header">
-                    <h2>🎛️ Vinyl DJ Widget</h2>
-                    <p>音乐交互体验</p>
-                </div>
-                <div class="widget-frame">
+            <a href="vinyl-dj-widget.html" class="widget-card">
+                <div class="widget-content">
                     <iframe src="vinyl-dj-widget.html" title="Vinyl DJ Widget"></iframe>
                 </div>
-                <div class="widget-footer">
-                    <a href="vinyl-dj-widget.html" target="_blank">全屏查看</a>
+                <div class="widget-title">
+                    <h2>Vinyl DJ</h2>
                 </div>
-            </div>
+            </a>
         </div>
 
         <footer>
-            <div class="tech-stack">
-                <h3>关于项目</h3>
-                <p>汽车智能座舱年轻化概念设计 - Canvas 和交互式 JavaScript 演示</p>
-                <p style="margin-top: 10px; font-size: 0.85rem;">© 2026 设计概念展示</p>
-            </div>
+            © 2026 Car Cabin Design Concept
         </footer>
     </div>
 </body>
