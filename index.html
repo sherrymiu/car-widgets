@@ -52,7 +52,7 @@
 
         @media (min-width: 768px) {
             .widgets-grid {
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
                 gap: 30px;
             }
         }
@@ -160,6 +160,16 @@
                 </div>
                 <div class="widget-title">
                     <h2>Vinyl DJ</h2>
+                </div>
+            </a>
+
+            <!-- Mood Jar Widget -->
+            <a href="mood-jar-widget.html" class="widget-card">
+                <div class="widget-content">
+                    <iframe src="mood-jar-widget.html" title="Mood Jar Widget"></iframe>
+                </div>
+                <div class="widget-title">
+                    <h2>Mood Jar</h2>
                 </div>
             </a>
         </div>
