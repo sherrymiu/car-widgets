@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐠 桌面小鱼缸</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: #b8b8b8;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  gap: 14px;
+}
+
+/* ── Widget shell ── */
+.tank {
+  width: 660px; height: 330px;
+  border-radius: 28px;
+  position: relative; overflow: hidden;
+  cursor: default;
+  box-shadow:
+    0 0 0 5px rgba(255,255,255,0.28),
+    0 16px 56px rgba(0,0,0,0.38),
+    inset 0 1px 0 rgba(255,255,255,0.45),
+    inset 0 -2px 6px rgba(0,0,0,0.2);
+}
+
+/* ── Weather backgrounds ── */
+.tank { transition: background 2.5s ease; }
+.tank.sunny  { background: linear-gradient(175deg,#9DD8F5 0%,#62C0EE 35%,#42A8D8 62%,#318CC0 82%,#D4C898 100%); }
+.tank.cloudy { background: linear-gradient(175deg,#8BA8BB 0%,#5A7E95 38%,#3D6378 68%,#2A4F62 100%); }
+.tank.rain   { background: linear-gradient(175deg,#607D8B 0%,#3E6070 38%,#2B4A58 68%,#192F3D 100%); }
+.tank.thunder{ background: linear-gradient(175deg,#2A3540 0%,#1C2830 38%,#111E26 68%,#080F14 100%); }
+
+/* ── Caustic light rays ── */
+#lightRays {
+  position: absolute; top: -10px; left: 0; right: 0; height: 55%;
+  opacity: 0; transition: opacity 2s ease; pointer-events: none;
+}
+.tank.sunny #lightRays { opacity: 1; }
+.ray {
+  position: absolute; top: 0;
+  background: linear-gradient(180deg, rgba(255,255,210,0.22) 0%, transparent 100%);
+  border-radius: 60% 60% 50% 50%;
+  filter: blur(7px);
+  animation: rayDrift ease-in-out infinite alternate;
+}
+@keyframes rayDrift {
+  0%   { transform: rotate(-6deg) scaleX(1);   }
+  100% { transform: rotate( 6deg) scaleX(1.3); }
+}
+
+/* ── Water surface — static highlight, no animation (防闪) ── */
+.surface {
+  position: absolute; top: 0; left: 0; right: 0; height: 8px;
+  background: linear-gradient(90deg,
+    transparent 0%, rgba(255,255,255,.22) 30%,
+    rgba(255,255,255,.12) 60%, transparent 100%);
+  border-radius: 28px 28px 0 0; pointer-events: none;
+}
+
+/* ── Rain ripples at surface ── */
+.ripples {
+  position: absolute; top: 0; left: 0; right: 0; height: 18px;
+  pointer-events: none; overflow: hidden;
+  opacity: 0; transition: opacity 1s ease;
+}
+.tank.rain .ripples, .tank.thunder .ripples { opacity: 1; }
+.ripple-el {
+  position: absolute;
+  border: 1.5px solid rgba(200,230,255,.5);
+  border-radius: 50%;
+  animation: rippleGrow .9s ease-out forwards;
+}
+@keyframes rippleGrow {
+  from { transform: scale(0); opacity: .8; }
+  to   { transform: scale(1); opacity: 0;  }
+}
+
+/* ── Rain canvas ── */
+#rainCanvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  opacity: 0; transition: opacity 1.2s ease;
+}
+.tank.rain #rainCanvas, .tank.thunder #rainCanvas { opacity: 1; }
+
+/* ── Thunder flash ── */
+#tflash {
+  position: absolute; inset: 0;
+  background: rgba(210,240,255,0);
+  pointer-events: none; border-radius: 28px;
+  transition: background .05s;
+}
+
+/* ── Dark overlay ── */
+#darkOverlay {
+  position: absolute; inset: 0; pointer-events: none; border-radius: 28px;
+  background: rgba(0,20,40,0); transition: background 2.5s ease;
+}
+.tank.rain    #darkOverlay { background: rgba(0,15,35,.18); }
+.tank.thunder #darkOverlay { background: rgba(0,10,25,.42); }
+
+/* ── Water/sand blur blend strip — straddles the boundary, no hard edge ── */
+.floor-blend {
+  position: absolute;
+  bottom: 82px;          /* center on the water/sand boundary */
+  left: 0; right: 0;
+  height: 48px;
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+  -webkit-mask-image: linear-gradient(180deg,
+    transparent 0%, black 35%, black 65%, transparent 100%);
+  mask-image: linear-gradient(180deg,
+    transparent 0%, black 35%, black 65%, transparent 100%);
+  pointer-events: none;
+  z-index: 8;
+}
+
+/* ── Sandy floor ── */
+.floor {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 130px;        /* extends 44px up into water — fade zone lives in water itself */
+  pointer-events: none;
+}
+#sandCanvas {
+  position: absolute; bottom: 0; left: 0;
+  width: 100%; height: 100%;
+  display: block;
+}
+/* Floor decorations — absolutely positioned for organic scatter */
+.floor-deco {
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+.deco {
+  position: absolute; line-height: 1;
+  z-index: 5;
+}
+.sway {
+  display: inline-block;
+  transform-origin: bottom center;
+  animation: sway ease-in-out infinite alternate;
+}
+@keyframes sway {
+  0%   { transform: rotate(-9deg); }
+  100% { transform: rotate( 9deg); }
+}
+
+/* ── Sand cap — covers the bottom, makes emojis look buried ── */
+.sand-cap {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 22px;
+  /* matches the light cream/beige sand canvas colours */
+  background: linear-gradient(180deg,
+    rgba(229,212,168,0)    0%,
+    rgba(224,206,158,0.60) 28%,
+    #D8C090                55%,
+    #D0B882                78%,
+    #CBAD7C               100%);
+  pointer-events: none;
+  z-index: 12;
+}
+
+/* ── Bubbles ── */
+.bubble {
+  position: absolute; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.5), rgba(180,220,255,.15));
+  border: 1px solid rgba(255,255,255,.4);
+  pointer-events: none;
+  animation: bubbleRise linear forwards;
+}
+@keyframes bubbleRise {
+  0%   { transform: translateX(0);    opacity: .7; }
+  40%  { transform: translateX(6px);  opacity: .6; }
+  80%  { transform: translateX(-4px); opacity: .3; }
+  100% { transform: translateX(2px);  opacity: 0;  }
+}
+
+/* ── Fish ── */
+#fishLayer  { position: absolute; inset: 0; z-index: 10; pointer-events: none; }
+#bubbleLayer{ position: absolute; inset: 0; z-index: 9;  pointer-events: none; }
+.fish {
+  position: absolute; line-height: 1;
+  cursor: pointer; user-select: none;
+  pointer-events: auto; will-change: transform;
+  transition: filter .25s;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,.2));
+}
+.fish:hover { filter: drop-shadow(0 0 10px rgba(255,255,255,.75)); }
+.fish.flee  { filter: drop-shadow(0 0 14px rgba(255,220,60,.9)); }
+.fish.bump  { animation: bump .18s ease-out; }
+@keyframes bump {
+  50% { transform: scale(1.4) !important; }
+}
+
+/* ── Weather Controls ── */
+.controls {
+  position: absolute; top: 14px; right: 14px;
+  display: flex; gap: 6px;
+  background: rgba(0,0,0,.22);
+  backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 22px; padding: 5px 9px;
+}
+.wbtn {
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 16px; padding: 4px 11px;
+  font-size: 17px; cursor: pointer;
+  transition: all .2s; outline: none;
+}
+.wbtn:hover  { background: rgba(255,255,255,.28); transform: scale(1.1); }
+.wbtn.active { background: rgba(255,255,255,.38); box-shadow: 0 0 8px rgba(255,255,255,.3); }
+
+
+/* ── Hint ── */
+.hint {
+  position: absolute; top: 14px; left: 16px;
+  color: rgba(255,255,255,.45); font-size: 11px;
+  pointer-events: none; letter-spacing: .5px;
+}
+
+/* ── Label ── */
+.widget-label {
+  color: #555; font-size: 13px; font-weight: 500;
+  letter-spacing: .4px; text-align: center;
+}
+</style>
+</head>
+<body>
+
+<div class="tank sunny" id="tank">
+  <div id="lightRays"></div>
+  <div class="surface"></div>
+  <div class="ripples" id="ripples"></div>
+  <canvas id="rainCanvas"></canvas>
+  <div id="tflash"></div>
+  <div id="darkOverlay"></div>
+
+  <!-- Blur strip: straddles water/sand boundary, softens the edge -->
+  <div class="floor-blend"></div>
+
+  <!-- Floor: sand canvas + scattered decorations -->
+  <div class="floor">
+    <canvas id="sandCanvas"></canvas>
+    <div class="floor-deco" id="floorDeco"></div>
+    <!-- Sand cap: renders on TOP of deco items, hides their roots/bases -->
+    <div class="sand-cap"></div>
+  </div>
+
+  <div id="fishLayer"></div>
+  <div id="bubbleLayer"></div>
+
+  <div class="hint">点击鱼儿让它跑～</div>
+
+  <div class="controls">
+    <button class="wbtn active" id="btn-sunny"   onclick="setWeather('sunny')"   title="晴天">☀️</button>
+    <button class="wbtn"        id="btn-cloudy"  onclick="setWeather('cloudy')"  title="多云">☁️</button>
+    <button class="wbtn"        id="btn-rain"    onclick="setWeather('rain')"    title="下雨">🌧️</button>
+    <button class="wbtn"        id="btn-thunder" onclick="setWeather('thunder')" title="雷暴">⛈️</button>
+  </div>
+</div>
+
+<div class="widget-label">小鱼缸 · Fish Tank Widget &nbsp;✦&nbsp; 点击鱼儿互动</div>
+
+<script>
+// ─── Constants ────────────────────────────────
+const W = 660, H = 330;
+const FLOOR_H = 86;
+const MARGIN  = 28;
+
+// New fish lineup
+const SWIM_FISH = ['🐢','🐟','🐠','🐡','🦐','🐙','🦑','🐟','🐠'];
+const NUM_FISH  = 9;
+
+// ─── State ────────────────────────────────────
+let weather  = 'sunny';
+let fishes   = [];
+let drops    = [];
+let tThunder = null;
+let lastTS   = 0;
+
+const tank        = document.getElementById('tank');
+const fishLayer   = document.getElementById('fishLayer');
+const bubbleLayer = document.getElementById('bubbleLayer');
+const rainCanvas  = document.getElementById('rainCanvas');
+const rctx        = rainCanvas.getContext('2d');
+rainCanvas.width  = W;
+rainCanvas.height = H;
+
+// ─── Sand Texture (canvas) — matches reference image style ───
+function drawSand() {
+  const canvas = document.getElementById('sandCanvas');
+  const fw = canvas.parentElement.offsetWidth || W;
+  const fh = canvas.parentElement.offsetHeight || FLOOR_H;
+  canvas.width  = fw;
+  canvas.height = fh;
+  const ctx = canvas.getContext('2d');
+  const rng = mulberry32(7);
+
+  // ── 1. Dune silhouette path ──────────────────────────────────
+  // Reference image: gentle undulating sand dune at the top of the floor.
+  // Define control points for the dune top edge (y from top of canvas).
+  const duneY = [
+    [0,    64],
+    [60,   56],
+    [130,  62],
+    [200,  53],
+    [270,  60],
+    [340,  55],
+    [410,  63],
+    [480,  52],
+    [540,  58],
+    [600,  54],
+    [fw,   60],
+  ];
+
+  ctx.beginPath();
+  ctx.moveTo(0, fh);       // bottom-left
+  ctx.lineTo(0, duneY[0][1]);
+  // smooth curve through dune control points
+  for (let i = 1; i < duneY.length; i++) {
+    const [x0, y0] = duneY[i - 1];
+    const [x1, y1] = duneY[i];
+    const mx = (x0 + x1) / 2;
+    ctx.quadraticCurveTo(x0, y0, mx, (y0 + y1) / 2);
+  }
+  const last = duneY[duneY.length - 1];
+  ctx.lineTo(last[0], last[1]);
+  ctx.lineTo(fw, fh);      // bottom-right
+  ctx.closePath();
+
+  // ── 2. Sand fill gradient — light cream/beige matching reference ──
+  const grad = ctx.createLinearGradient(0, 0, 0, fh);
+  grad.addColorStop(0.00, '#EDE0BE');   // top: warm cream
+  grad.addColorStop(0.35, '#E5D4A8');   // upper-mid
+  grad.addColorStop(0.65, '#D8C090');   // mid
+  grad.addColorStop(1.00, '#CBAD7C');   // bottom: slightly deeper
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // ── 3. Subtle fine grain — very light, barely visible ────────
+  ctx.save();
+  ctx.clip(); // clip grains to the dune shape
+  ctx.beginPath(); ctx.rect(0,0,fw,fh); ctx.clip();
+
+  for (let i = 0; i < 1200; i++) {
+    const gx = rng() * fw;
+    const gy = 10 + rng() * (fh - 10);
+    const gr = 0.4 + rng() * 0.7;
+    ctx.beginPath();
+    ctx.ellipse(gx, gy, gr, gr * 0.6, rng() * Math.PI, 0, Math.PI * 2);
+    // alternate between slight dark and slight light grain
+    if (rng() > 0.5) {
+      ctx.fillStyle = `rgba(160,130,80,${0.06 + rng() * 0.08})`;
+    } else {
+      ctx.fillStyle = `rgba(255,245,210,${0.08 + rng() * 0.10})`;
+    }
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // ── 4. Large rounded pebbles (reference shows ~8 distinct rocks) ──
+  // [cx, cy-from-bottom, rx, ry, rotation, lightness]
+  const rocks = [
+    [72,  18, 16, 11,  0.1,  95],   // dark gray, left area
+    [155, 14, 22, 15, -0.15, 85],   // large dark rock
+    [248, 20, 13, 9,   0.2,  100],  // medium
+    [320, 16, 8,  6,   0.0,  110],  // small
+    [388, 13, 11, 7,  -0.1,  92],   // medium dark
+    [458, 17, 19, 13,  0.12, 88],   // large
+    [534, 15, 10, 7,   0.08, 102],  // medium
+    [590, 12, 14, 10, -0.2,  90],   // dark
+    [638, 18, 9,  6,   0.15, 105],  // small right
+  ];
+
+  rocks.forEach(([cx, cyFromBot, rx, ry, rot, L]) => {
+    const cy = fh - cyFromBot;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+
+    // Radial gradient for 3D pebble look
+    const rg = ctx.createRadialGradient(-rx * 0.3, -ry * 0.35, 0, 0, 0, rx * 1.1);
+    rg.addColorStop(0,   `hsl(30,8%,${Math.min(L + 18, 100)}%)`);  // highlight
+    rg.addColorStop(0.6, `hsl(25,8%,${L}%)`);                       // base
+    rg.addColorStop(1,   `hsl(20,8%,${Math.max(L - 22, 30)}%)`);    // shadow
+
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = rg;
+    ctx.fill();
+
+    // Subtle highlight arc
+    ctx.beginPath();
+    ctx.ellipse(-rx * 0.25, -ry * 0.3, rx * 0.4, ry * 0.22, -0.3, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,0.18)`;
+    ctx.fill();
+
+    ctx.restore();
+  });
+
+  // ── 5. Tiny scattered mini-pebbles ────────────────────────────
+  const miniRocks = [
+    [105, 10, 4, 3], [180, 8, 3, 2], [295, 11, 5, 3],
+    [370, 9, 3, 2],  [424, 12, 4, 3],[500, 10, 5, 3],
+    [562, 8, 3, 2],  [614, 11, 4, 3],
+  ];
+  miniRocks.forEach(([cx, cyB, rx, ry]) => {
+    const cy = fh - cyB;
+    ctx.save();
+    ctx.translate(cx, cy);
+    const mg = ctx.createRadialGradient(-rx*.3, -ry*.3, 0, 0, 0, rx);
+    mg.addColorStop(0, 'rgba(195,175,155,0.85)');
+    mg.addColorStop(1, 'rgba(155,135,115,0.7)');
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, rng()*Math.PI, 0, Math.PI*2);
+    ctx.fillStyle = mg;
+    ctx.fill();
+    ctx.restore();
+  });
+
+  // ── 6. Feather the dune silhouette — fade happens at dune top, IN the water zone ──
+  // Canvas top 44px is already transparent (above dune). Fade the dune edge itself.
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  const topFade = ctx.createLinearGradient(0, 42, 0, 78);
+  topFade.addColorStop(0,    'rgba(0,0,0,0.88)');  // heavy erase at very first sand pixels
+  topFade.addColorStop(0.55, 'rgba(0,0,0,0.35)');  // lighter erase mid-zone
+  topFade.addColorStop(1,    'rgba(0,0,0,0)');      // no erase — full sand below
+  ctx.fillStyle = topFade;
+  ctx.fillRect(0, 42, fw, 36);                      // only apply in the dune zone
+  ctx.restore();
+}
+
+// Deterministic pseudo-random (seeded) — so sand looks same on each reload
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let z = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    z = z + Math.imul(z ^ z >>> 7, 61 | z) ^ z;
+    return ((z ^ z >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// ─── Floor Decorations (scattered) ────────────
+function buildFloor() {
+  const container = document.getElementById('floorDeco');
+  // [emoji, left-px, bottom-px, font-size-px, sway-bool, sway-dur, sway-dir]
+  // bottom values:
+  //   plants/coral  → -2 to 4   (roots buried, only body shows above sand cap)
+  //   rocks/shells  → -6 to -2  (mostly buried, just a bit poking out)
+  //   moai          →  4        (base slightly buried, body prominent)
+  //   crab/octopus  → 20-24     (sitting ON the sand surface, above sand cap)
+  const items = [
+    ['🌿',  12,   2, 28, true,  2.1,  1],
+    ['🪨',  52,  -5, 22, false, 0,    1],
+    ['🌿',  90,   4, 31, true,  2.6, -1],
+    ['🪸', 132,   1, 26, true,  1.9,  1],
+    ['🌿', 170,   0, 23, true,  2.4, -1],
+    ['🗿', 210,   4, 33, false, 0,    1],
+    ['🪨', 252,  -6, 16, false, 0,    1],
+    ['🌿', 280,   3, 29, true,  2.2,  1],
+    ['🐙', 318,  22, 27, false, 0,    1],   // octopus on sand
+    ['🪸', 358,   0, 30, true,  2.8, -1],
+    ['🌿', 396,   2, 25, true,  1.8,  1],
+    ['🦀', 435,  24, 25, false, 0,    1],   // crab on sand
+    ['🪨', 474,  -4, 18, false, 0,    1],
+    ['🪸', 506,   1, 27, true,  2.5, -1],
+    ['🐚', 546,  -5, 22, false, 0,    1],   // shell half-buried
+    ['🌿', 578,   3, 31, true,  2.0,  1],
+    ['🪨', 620,  -3, 19, false, 0,    1],
+    ['🌿', 642,   1, 24, true,  2.3, -1],
+  ];
+
+  items.forEach(([em, lx, bt, sz, sw, dur, dir]) => {
+    const el = document.createElement('span');
+    el.className = 'deco' + (sw ? ' sway' : '');
+    el.textContent = em;
+    el.style.fontSize = sz + 'px';
+    el.style.left     = lx + 'px';
+    el.style.bottom   = bt + 'px';
+    el.style.zIndex   = 5;  // always below sand-cap (z:12)
+    if (sw) {
+      el.style.animationDuration = dur + 's';
+      if (dir === -1) el.style.animationDirection = 'alternate-reverse';
+    }
+    container.appendChild(el);
+  });
+}
+
+// ─── Fish Class ───────────────────────────────
+class Fish {
+  constructor(idx) {
+    this.emoji     = SWIM_FISH[idx % SWIM_FISH.length];
+    this.size      = 28 + Math.random() * 14;
+    this.baseSpeed = 0.14 + Math.random() * 0.22;  // much slower, lazy drift
+    this.x  = MARGIN + Math.random() * (W - MARGIN*2 - this.size);
+    this.y  = MARGIN + Math.random() * (H - MARGIN - FLOOR_H - this.size);
+
+    const ang = Math.random() * Math.PI * 2;
+    this.vx = Math.cos(ang) * this.baseSpeed;
+    this.vy = Math.sin(ang) * this.baseSpeed * 0.45;
+
+    this.phase    = Math.random() * Math.PI * 2;
+    this.wFreq    = .018 + Math.random() * .012;
+    this.wAmp     = .18  + Math.random() * .22;
+    this.wanderT  = 0;
+    this.wanderIv = 120 + Math.random() * 180;
+    this.fleeing  = false;
+    this.fleeTimer = 0;
+
+    // Jellyfish drifts more vertically; turtle plods; squid a touch faster
+    if (this.emoji === '🐢') { this.baseSpeed *= 0.55; }           // 慢悠悠
+    if (this.emoji === '🦐') { this.baseSpeed *= 1.5; this.vy *= 1.4; } // 蹦跶
+    if (this.emoji === '🐙') { this.baseSpeed *= 0.75; }           // 漂浮感
+    if (this.emoji === '🦑') { this.baseSpeed *= 1.3;  }           // 灵活
+
+    this.el = document.createElement('div');
+    this.el.className = 'fish';
+    this.el.textContent = this.emoji;
+    this.el.style.fontSize = this.size + 'px';
+    this.el.addEventListener('click', e => {
+      e.stopPropagation();
+      const r = tank.getBoundingClientRect();
+      this.startFlee(e.clientX - r.left, e.clientY - r.top);
+    });
+    fishLayer.appendChild(this.el);
+    this._render();
+  }
+
+  startFlee(fx, fy) {
+    const dx = this.x - fx, dy = this.y - fy;
+    const d  = Math.sqrt(dx*dx + dy*dy) || 1;
+    const sp = 3.2 + Math.random() * 2.5;   // flee burst also toned down
+    this.vx = (dx/d) * sp;
+    this.vy = (dy/d) * sp * .55;
+    this.fleeing   = true;
+    this.fleeTimer = 700 + Math.random() * 500;
+    this.el.classList.add('flee', 'bump');
+    setTimeout(() => this.el.classList.remove('bump'), 200);
+  }
+
+  update(dt) {
+    const n = dt / 16.67;
+
+    if (this.fleeing) {
+      this.fleeTimer -= dt;
+      const damp = Math.pow(0.965, n);
+      this.vx *= damp; this.vy *= damp;
+      if (this.fleeTimer <= 0) {
+        this.fleeing = false;
+        this.el.classList.remove('flee');
+        this._resetSpeed();
+      }
+    } else {
+      this.phase   += this.wFreq * n;
+      this.vy      += Math.sin(this.phase) * this.wAmp * 0.014 * n;
+      this.wanderT += dt;
+      if (this.wanderT > this.wanderIv) {
+        this.wanderT  = 0;
+        this.wanderIv = 100 + Math.random() * 200;
+        this.vx += (Math.random() - .5) * .6;
+        this.vy += (Math.random() - .5) * .3;
+      }
+      const sp     = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+      const target = this.baseSpeed * (weather === 'thunder' ? 1.4 : 1);
+      if      (sp > target * 2.2 && sp > 0) { this.vx *= target*2.2/sp; this.vy *= target*2.2/sp; }
+      else if (sp < target * .3  && sp > 0) { this.vx *= target*.3/sp;  this.vy *= target*.3/sp;  }
+      else if (sp < .01)                    { this.vx  = this.baseSpeed * (Math.random()>.5?1:-1); }
+    }
+
+    this.x += this.vx * n;
+    this.y += this.vy * n;
+
+    const maxX = W - MARGIN - this.size * 0.5;
+    const maxY = H - FLOOR_H - this.size * 0.8;
+    if (this.x < MARGIN) { this.x  = MARGIN;  this.vx =  Math.abs(this.vx)+.2; }
+    if (this.x > maxX)   { this.x  = maxX;    this.vx = -(Math.abs(this.vx)+.2); }
+    if (this.y < MARGIN) { this.y  = MARGIN;  this.vy =  Math.abs(this.vy); }
+    if (this.y > maxY)   { this.y  = maxY;    this.vy = -Math.abs(this.vy); }
+
+    this._render();
+  }
+
+  _resetSpeed() {
+    const sp = Math.sqrt(this.vx*this.vx + this.vy*this.vy) || .01;
+    this.vx  = (this.vx/sp) * this.baseSpeed;
+    this.vy  = (this.vy/sp) * this.baseSpeed * .5;
+  }
+
+  _render() {
+    this.el.style.left = this.x + 'px';
+    this.el.style.top  = this.y + 'px';
+    // 🐢🦑🦐 face right by default; fish/octopus face left
+    const facesRight = this.emoji === '🐢' || this.emoji === '🦑' || this.emoji === '🦐';
+    const goingRight = this.vx > 0;
+    const flip = (facesRight ? goingRight : !goingRight) ? 'scaleX(1)' : 'scaleX(-1)';
+    if (!this.el.classList.contains('bump')) this.el.style.transform = flip;
+  }
+}
+
+// ─── Rain ─────────────────────────────────────
+function spawnDrop() {
+  drops.push({ x: Math.random()*W, y: -14, vx: .6+Math.random()*.8, vy: 3.5+Math.random()*4, len: 9+Math.random()*11, a: .25+Math.random()*.3 });
+}
+function tickRain(dt) {
+  const active = weather==='rain' || weather==='thunder';
+  rctx.clearRect(0,0,W,H);
+  if (!active && drops.length===0) return;
+  const n = dt/16.67;
+  if (active) for (let i=0; i<(weather==='thunder'?6:3); i++) spawnDrop();
+  rctx.lineWidth = 1.2;
+  for (let i=drops.length-1; i>=0; i--) {
+    const d=drops[i]; d.x+=d.vx*n; d.y+=d.vy*n;
+    rctx.strokeStyle=`rgba(185,218,245,${d.a})`;
+    rctx.beginPath(); rctx.moveTo(d.x,d.y); rctx.lineTo(d.x-d.vx*2.5,d.y-d.len); rctx.stroke();
+    if (d.y>H+10) drops.splice(i,1);
+  }
+}
+
+// ─── Ripples ──────────────────────────────────
+function spawnRipple() {
+  const el=document.createElement('div'); el.className='ripple-el';
+  const sz=8+Math.random()*16;
+  el.style.cssText=`width:${sz}px;height:${sz*.35}px;left:${Math.random()*(W-sz)}px;top:${Math.random()*12}px`;
+  document.getElementById('ripples').appendChild(el);
+  setTimeout(()=>el.remove(),900);
+}
+
+// ─── Bubbles ──────────────────────────────────
+function spawnBubble() {
+  const el=document.createElement('div'); el.className='bubble';
+  const sz=4+Math.random()*7, dur=3.5+Math.random()*3.5;
+  el.style.cssText=`width:${sz}px;height:${sz}px;left:${18+Math.random()*(W-36)}px;bottom:${FLOOR_H-12}px;animation-duration:${dur}s`;
+  bubbleLayer.appendChild(el);
+  setTimeout(()=>el.remove(),dur*1000);
+}
+
+// ─── Light Rays ───────────────────────────────
+function buildRays() {
+  const c=document.getElementById('lightRays');
+  for (let i=0;i<7;i++) {
+    const el=document.createElement('div'); el.className='ray';
+    el.style.cssText=`width:${45+Math.random()*50}px;height:${160+Math.random()*110}px;left:${4+(i/7)*88}%;transform:rotate(${-22+i*7}deg);animation-duration:${3.2+i*.5}s;animation-delay:${i*.4}s;opacity:${.35+Math.random()*.3}`;
+    c.appendChild(el);
+  }
+}
+
+// ─── Thunder ──────────────────────────────────
+function doThunder() {
+  if (weather!=='thunder') return;
+  const fl=document.getElementById('tflash');
+  const f=(a,cb)=>{fl.style.background=`rgba(215,240,255,${a})`;setTimeout(cb,70);};
+  f(.65,()=>f(0,()=>setTimeout(()=>f(.35,()=>f(0,()=>{})),70)));
+  fishes.forEach(f=>{
+    if (Math.random()<.45) f.startFlee(W/2+(Math.random()-.5)*200, H/2+(Math.random()-.5)*100);
+  });
+  tThunder=setTimeout(doThunder,4500+Math.random()*9000);
+}
+
+// ─── Weather ──────────────────────────────────
+function setWeather(w) {
+  weather=w; tank.className='tank '+w;
+  document.querySelectorAll('.wbtn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('btn-'+w).classList.add('active');
+  clearTimeout(tThunder); tThunder=null;
+  document.getElementById('tflash').style.background='rgba(215,240,255,0)';
+  if (w==='thunder') setTimeout(doThunder,1200+Math.random()*1500);
+}
+
+// ─── Scatter (feed) ───────────────────────────
+function scatter() {
+  const cx=W/2+(Math.random()-.5)*120, cy=60+Math.random()*80;
+  fishes.forEach(f=>{
+    const dx=cx-f.x, dy=cy-f.y, d=Math.sqrt(dx*dx+dy*dy)||1, sp=1.5+Math.random()*2.5;
+    f.vx=(dx/d)*sp; f.vy=(dy/d)*sp*.5; f.fleeing=false; f.el.classList.remove('flee');
+  });
+}
+
+// ─── Main Loop ────────────────────────────────
+function loop(ts) {
+  const dt=Math.min(ts-lastTS,64); lastTS=ts;
+  fishes.forEach(f=>f.update(dt));
+  tickRain(dt);
+  requestAnimationFrame(loop);
+}
+
+
+// ─── Init ─────────────────────────────────────
+function init() {
+  drawSand();
+  buildFloor();
+  buildRays();
+  for (let i=0;i<NUM_FISH;i++) fishes.push(new Fish(i));
+  setInterval(spawnBubble,1400);
+  setInterval(()=>{if(Math.random()<.28)spawnBubble();},500);
+  setInterval(()=>{if(weather==='rain'||weather==='thunder')spawnRipple();},180);
+  setInterval(()=>{if(weather==='thunder'&&Math.random()<.6)spawnRipple();},100);
+  lastTS=performance.now();
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener('load', init);
+</script>
+</body>
+</html>
